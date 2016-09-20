@@ -1,6 +1,9 @@
-﻿$DisplayName = 'ASM2ARM-Mig'
-$Domain = 'vigilant.it'
-$Password = '#Password#Mig#123!'
+# you must belong to the Owner or User Access Administrator roles, or have a customized role that grants write access for Microsoft.Authorization
+# https://social.msdn.microsoft.com/Forums/azure/en-US/77928b22-eb59-480d-93e4-4dcf912b7928/unable-to-assign-application-to-role-when-creating-service-principal-for-subscription-payasyougo?forum=WindowsAzureAD
+
+$DisplayName = 'My-SPN'
+$Domain = 'company.com'
+$Password = 'Password'
 
 $SourceTargetTenant = $null
 
@@ -9,18 +12,19 @@ Show("Are the source & target subscription the same?","Source & Target subscript
 
 if($SourceTargetSubscription -eq 'No'){
 $SourceTargetTenant = [System.Windows.Forms.MessageBox]::`
-Show("Do you use the same logon to access both subscriptions?","Source & Target tenant","YesNo","Information")
+Show("Do you use the same logon account to access both subscriptions?","Source & Target tenant","YesNo","Information")
 }
 
 Function SPN-Removal ($DisplayName){
 
+    if(Get-AzureRmADApplication | ? {$_.DisplayName -eq $DisplayName}){
+    $app = Get-AzureRmADApplication | ? {$_.DisplayName -eq $DisplayName}
+    Remove-AzureRmADApplication -ObjectId $app.ObjectId.Guid -Force
+    }
     if(Get-AzureRmADServicePrincipal -SearchString $DisplayName){
     $appsp = Get-AzureRmADServicePrincipal -SearchString $DisplayName
-    $app = Get-AzureRmADApplication -ApplicationId $appsp.ApplicationId
     Remove-AzureRmADServicePrincipal -ObjectId $appsp.Id
-    Remove-AzureRmADApplication -ApplicationObjectId $app.ApplicationObjectId -Force
     }
-
 }
 
 Function SPN-Creation ($Environment, $Subscription, $DisplayName, $Domain, $Password){
@@ -29,11 +33,11 @@ Function SPN-Creation ($Environment, $Subscription, $DisplayName, $Domain, $Pass
                                 -DisplayName $DisplayName `
                                 -HomePage "https://$Domain/$DisplayName" `
                                 -IdentifierUris "https://$Domain/$DisplayName" `
-                                -Password $Password
-    $app.AvailableToOtherTenants = $true
+                                -Password $Password 
+
     New-AzureRmADServicePrincipal -ApplicationId $app.ApplicationId.Guid
-    Start-Sleep -Seconds 30 # Until it really creates it
-    New-AzureRmRoleAssignment -RoleDefinitionName Owner -ServicePrincipalName $app.ApplicationId.Guid
+    Start-Sleep -Seconds 10 # Until it really creates it
+    New-AzureRmRoleAssignment -RoleDefinitionName 'Contributor' -ServicePrincipalName $app.ApplicationId.Guid
 
     write-host -nonewline "`n`tThe $Environment SPN username is: " -ForegroundColor Yellow; `
     write-host -nonewline $app.ApplicationId.Guid`n -ForegroundColor Green; `
